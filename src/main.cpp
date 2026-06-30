@@ -29,6 +29,7 @@ enum GameState { MENU, PLAYING, PAUSED, GAME_OVER };
 GameState currentState = MENU;
 
 int score = 0;
+int top_score = 0; // Variable para almacenar el récord máximo
 int level = 1;
 
 long last_move;
@@ -54,19 +55,19 @@ bool lastCrossState = false;
 bool lastSelectState = false;
 bool lastStartState = false;
 bool lastCircleState = false;
+bool lastR3State = false;
 
 // --- Matrices de caracteres personalizados para la Matriz 16x16 ---
-const uint16_t bitmap_P[] = {
-  0b0111110000000000,
-  0b0111111000000000,
-  0b0110011000000000,
-  0b0110011000000000,
-  0b0111111000000000,
-  0b0111110000000000,
-  0b0110000000000000,
-  0b0110000000000000,
-  0b0110000000000000,
-  0b0110000000000000,
+// Pantalla Pausa: C (Continuar/Start) y R (Reiniciar/Círculo) lado a lado
+const uint16_t bitmap_PauseScreen[] = {
+  0b0011110001111100,
+  0b0111111001111110,
+  0b0110000001100110,
+  0b0110000001111100,
+  0b0110000001111110,
+  0b0110000001100110,
+  0b0111111001100110,
+  0b0011110001100110,
   0b0000000000000000
 };
 
@@ -101,8 +102,13 @@ void updateOledDisplay() {
   } 
   else if (currentState == PAUSED) {
     display.setTextSize(2);
-    display.setCursor(30, 22);
+    display.setCursor(30, 5);
     display.print("PAUSA");
+    display.setTextSize(1);
+    display.setCursor(5, 35);
+    display.print("START -> Continuar (C)");
+    display.setCursor(5, 50);
+    display.print("CIRCULO -> Reiniciar(R)");
   } 
   else if (currentState == GAME_OVER) {
     display.setTextSize(2);
@@ -115,13 +121,24 @@ void updateOledDisplay() {
     display.print("CIRCULO -> Salir");
   } 
   else if (currentState == PLAYING) {
-    display.setTextSize(2);
+    // Diseño del HUD clásico con récord máximo en pantalla
+    display.setTextSize(1);
     display.setCursor(0, 0);
-    display.print("Score:");
+    display.print("MAX SCORE:");
+    display.setCursor(70, 0);
+    display.print(top_score);
+
+    display.drawLine(0, 12, 128, 12, SSD1306_WHITE);
+
+    display.setTextSize(2);
     display.setCursor(0, 20);
+    display.print("Score:");
+    display.setCursor(0, 42);
     display.print(score);
-    display.setCursor(0, 45);
-    display.print("Nivel ");
+
+    display.setTextSize(1);
+    display.setCursor(85, 45);
+    display.print("Niv: ");
     display.print(level);
   }
   display.display();
@@ -132,18 +149,6 @@ void updateDifficulty() {
   drop_delay = INITIAL_DROP_DELAY - (level - 1) * 50; 
   if (drop_delay < DROP_MINIMUM) drop_delay = DROP_MINIMUM;
 }
-
-// --- Definiciones de piezas ---
-const char piece_I[] = { 0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,0,0, 0,0,0,0, 1,1,1,1, 0,0,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0 };
-const char piece_L[] = { 0,0,1,0, 1,1,1,0, 0,0,0,0, 0,0,0,0, 0,1,0,0, 0,1,0,0, 0,1,1,0, 0,0,0,0, 0,0,0,0, 1,1,1,0, 1,0,0,0, 0,0,0,0, 1,1,0,0, 0,1,0,0, 0,1,0,0, 0,0,0,0 };
-const char piece_J[] = { 1,0,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0, 0,1,1,0, 0,1,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,0, 0,0,1,0, 0,0,0,0, 0,1,0,0, 0,1,0,0, 1,1,0,0, 0,0,0,0 };
-const char piece_O[] = { 0,1,1,0, 0,1,1,0, 0,0,0,0, 0,0,0,0, 0,1,1,0, 0,1,1,0, 0,0,0,0, 0,0,0,0, 0,1,1,0, 0,1,1,0, 0,0,0,0, 0,0,0,0, 0,1,1,0, 0,1,1,0, 0,0,0,0, 0,0,0,0 };
-const char piece_S[] = { 0,1,1,0, 1,1,0,0, 0,0,0,0, 0,0,0,0, 0,1,0,0, 0,1,1,0, 0,0,1,0, 0,0,0,0, 0,0,0,0, 0,1,1,0, 1,1,0,0, 0,0,0,0, 1,0,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0 };
-const char piece_T[] = { 0,1,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0, 0,1,0,0, 0,1,1,0, 0,1,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,0, 0,1,0,0, 0,0,0,0, 0,1,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0 };
-const char piece_Z[] = { 1,1,0,0, 0,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,1,0, 0,1,1,0, 0,1,0,0, 0,0,0,0, 0,0,0,0, 1,1,0,0, 0,1,1,0, 0,0,0,0, 0,1,0,0, 1,1,0,0, 1,0,0,0, 0,0,0,0 };
-
-const char *pieces[NUM_PIECE_TYPES] = { piece_S, piece_Z, piece_L, piece_J, piece_O, piece_T, piece_I };
-const long piece_colors[NUM_PIECE_TYPES] = { 0x009900, 0xFF0000, 0xFF8000, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF };
 
 // --- Funciones de dibujo e iluminación de la Matriz ---
 #define COLOR_ORDER GRB
@@ -168,10 +173,8 @@ void draw_grid() {
   FastLED.show();
 }
 
-// Dibuja la pantalla animada de inicio "TETRIS" con un degradado dinámico (Chido/Guapo)
 void drawMenuScreen(long ms) {
   FastLED.clear();
-  // Efecto de ondas cromáticas de fondo usando matemáticas de ondas de FastLED
   for (int y = 0; y < GRID_H; y++) {
     for (int x = 0; x < GRID_W; x++) {
       uint8_t hue = (x * 12) + (y * 12) + (ms / 15);
@@ -181,7 +184,6 @@ void drawMenuScreen(long ms) {
   FastLED.show();
 }
 
-// Dibuja fuentes de bitmaps personalizados en coordenadas específicas de la matriz
 void drawBitmap(const uint16_t* bitmap, int h, long color, int offsetX, int offsetY) {
   for (int y = 0; y < h; y++) {
     uint16_t row = bitmap[y];
@@ -257,6 +259,16 @@ bool piece_can_fit(int px, int py, int pr) {
   return true;
 }
 
+// Comprobar y guardar nuevo récord máximo de forma persistente
+void checkTopScore() {
+  if (score > top_score) {
+    top_score = score;
+    preferences.begin(PREFS_NAMESPACE, false);
+    preferences.putInt("top_score", top_score);
+    preferences.end();
+  }
+}
+
 void delete_possible_lines() {
   int lines_cleared = 0;
   for (int y = GRID_H - 1; y >= 0; y--) {
@@ -275,6 +287,7 @@ void delete_possible_lines() {
   }
   if (lines_cleared > 0) {
     score += lines_cleared * 10;
+    checkTopScore();
     updateDifficulty();
     updateOledDisplay();
   }
@@ -300,6 +313,7 @@ void try_to_drop_piece() {
     choose_new_piece();
     if (!piece_can_fit(piece_x, piece_y, piece_rotation)) {
       currentState = GAME_OVER;
+      checkTopScore();
       FastLED.clear(true);
       updateOledDisplay();
     } else {
@@ -320,6 +334,11 @@ void setup() {
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     for (;;);
   }
+
+  // Cargar Récord Máximo desde la memoria flash del ESP32
+  preferences.begin(PREFS_NAMESPACE, true);
+  top_score = preferences.getInt("top_score", 0);
+  preferences.end();
 
   updateOledDisplay();
 
@@ -354,11 +373,21 @@ void loop() {
   bool circlePressed = currentCircle && !lastCircleState;
   lastCircleState = currentCircle;
 
+  // Botón de emergencia R3 (Saltar directamente al menú inicio estés donde estés)
+  bool currentR3 = Ps3.data.button.r3;
+  if (currentR3 && !lastR3State) {
+    checkTopScore();
+    currentState = MENU;
+    resetGameVariables();
+    updateOledDisplay();
+  }
+  lastR3State = currentR3;
+
   // ---- MÁQUINA DE ESTADOS COMPLETA ----
   switch (currentState) {
     
     case MENU:
-      drawMenuScreen(t); // Genera el fondo psicodélico dinámico
+      drawMenuScreen(t); 
       if (startPressed) {
         resetGameVariables();
         currentState = PLAYING;
@@ -368,7 +397,7 @@ void loop() {
       break;
 
     case PLAYING:
-      // Control de Pausa
+      // Entrar a menú pausa con SELECT (START no hace nada en este modo)
       if (selectPressed) {
         currentState = PAUSED;
         updateOledDisplay();
@@ -413,23 +442,35 @@ void loop() {
       break;
 
     case PAUSED:
-      // Muestra una 'P' gigante amarilla centrada en la matriz física
+      // Muestra la C (Verde - Izquierda) y la R (Roja - Derecha) alineadas en los LEDs
       FastLED.clear();
-      drawBitmap(bitmap_P, 11, 0xFFFF00, 4, 3); 
+      drawBitmap(bitmap_PauseScreen, 8, 0x00FF00, 0, 4); // C en Verde 
+      
+      // Dibujamos la R superpuesta en color Rojo a la derecha
+      for(int y=0; y<16; y++) {
+        for(int x=8; x<16; x++) {
+          if((bitmap_PauseScreen[y] >> (15 - x)) & 0x01) p(x, y, 0xFF0000);
+        }
+      }
       FastLED.show();
 
-      if (selectPressed) { // Quitar pausa
+      if (startPressed) { // CONTINUAR (C) -> Regresa a la partida actual
         currentState = PLAYING;
         updateOledDisplay();
-        last_drop = millis(); // Evita penalizaciones de caída inmediata al salir de pausa
+        last_drop = millis(); 
+      } 
+      else if (circlePressed) { // REINICIAR (R) -> Borra el tablero actual y empieza otra partida de inmediato
+        resetGameVariables();
+        currentState = PLAYING;
+        add_piece_to_grid();
+        updateOledDisplay();
       }
       break;
 
     case GAME_OVER:
-      // Muestra la J (Verde) y la S (Roja) alineadas en el tablero de LEDs
+      // Muestra la J (Verde) y la S (Roja)
       FastLED.clear();
-      drawBitmap(bitmap_GameOverScreen, 9, 0x00FF00, 0, 4); // J en Verde (Izquierda)
-      // Dibujamos la S superpuesta en la misma fila pero con color Rojo a la derecha
+      drawBitmap(bitmap_GameOverScreen, 9, 0x00FF00, 0, 4); 
       for(int y=0; y<16; y++) {
         for(int x=8; x<16; x++) {
           if((bitmap_GameOverScreen[y] >> (15 - x)) & 0x01) p(x, y, 0xFF0000);
