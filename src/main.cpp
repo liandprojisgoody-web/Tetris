@@ -1,3 +1,4 @@
+
 #include <Preferences.h>
 #include <FastLED.h>
 #include <Ps3Controller.h>
@@ -46,18 +47,23 @@ long grid[GRID_W*GRID_H];
 // OLED
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
+#define OLED_SDA 21
+#define OLED_SCL 22
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// Variables de estado de control
+bool lastUpState = false; 
 
 // --- Pantalla inicial ---
 void showStartScreen() {
   display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(10, 10);
+  display.setCursor(25, 10);
   display.print("TETRIS");
   display.setTextSize(1);
-  display.setCursor(10, 40);
-  display.print("Presiona START");
+  display.setCursor(20, 42);
+  display.print("Control Conectado");
   display.display();
 }
 
@@ -80,12 +86,12 @@ void updateDisplay() {
 
 // Ajustar dificultad según score
 void updateDifficulty() {
-  level = (score / 50) + 1; // cada 50 puntos sube un nivel
-  drop_delay = INITIAL_DROP_DELAY - (level - 1) * 50; // cada nivel acelera caída
+  level = (score / 50) + 1; 
+  drop_delay = INITIAL_DROP_DELAY - (level - 1) * 50; 
   if (drop_delay < DROP_MINIMUM) drop_delay = DROP_MINIMUM;
 }
 
-// --- Definiciones de piezas (4 rotaciones de 4x4 por pieza) ---
+// --- Definiciones de piezas ---
 const char piece_I[] = {
   0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0,
   0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0,
@@ -139,7 +145,6 @@ const char *pieces[NUM_PIECE_TYPES] = {
   piece_S, piece_Z, piece_L, piece_J, piece_O, piece_T, piece_I
 };
 
-// Colores para cada figura
 const long piece_colors[NUM_PIECE_TYPES] = {
   0x009900, // verde S
   0xFF0000, // rojo Z
@@ -247,7 +252,6 @@ void add_piece_to_grid() {
   }
 }
 
-// Función que valida si una pieza cabe en una posición determinada
 bool piece_can_fit(int px, int py, int pr) {
   int x, y;
   const char *piece = pieces[piece_id] + (pr * PIECE_H * PIECE_W);
@@ -257,7 +261,7 @@ bool piece_can_fit(int px, int py, int pr) {
         int nx = px + x;
         int ny = py + y;
         if (nx < 0 || nx >= GRID_W || ny >= GRID_H) return false;
-        if (ny < 0) continue; // Permite que aparezcan desde arriba
+        if (ny < 0) continue; 
         if (grid[ny * GRID_W + nx] != 0) return false;
       }
     }
@@ -265,7 +269,6 @@ bool piece_can_fit(int px, int py, int pr) {
   return true;
 }
 
-// Función para eliminar las líneas completas
 void delete_possible_lines() {
   int lines_cleared = 0;
   for (int y = GRID_H - 1; y >= 0; y--) {
@@ -286,7 +289,7 @@ void delete_possible_lines() {
       for (int x = 0; x < GRID_W; x++) {
         grid[0 + x] = 0;
       }
-      y++; // Volver a revisar la misma fila ya que todo bajó un nivel
+      y++; 
     }
   }
   if (lines_cleared > 0) {
@@ -296,18 +299,16 @@ void delete_possible_lines() {
   }
 }
 
-// Función para intentar bajar la pieza
 void try_to_drop_piece() {
   erase_piece_from_grid();
   if (piece_can_fit(piece_x, piece_y + 1, piece_rotation)) {
     piece_y++;
     add_piece_to_grid();
   } else {
-    add_piece_to_grid(); // Fijarla donde estaba
+    add_piece_to_grid(); 
     delete_possible_lines();
     choose_new_piece();
     if (!piece_can_fit(piece_x, piece_y, piece_rotation)) {
-      // Game over: Limpiar tablero
       for (int i = 0; i < GRID_W * GRID_H; ++i) {
         grid[i] = 0;
       }
@@ -319,15 +320,12 @@ void try_to_drop_piece() {
   }
 }
 
-// --- Funciones de control con PS3 ---
+// --- Funciones de control ---
 bool isPs3LeftPressed() { return Ps3.isConnected() && Ps3.data.button.left; }
 bool isPs3RightPressed() { return Ps3.isConnected() && Ps3.data.button.right; }
 bool isPs3UpPressed() { return Ps3.isConnected() && Ps3.data.button.up; }
 bool isPs3DownPressed() { return Ps3.isConnected() && Ps3.data.button.down; }
-bool isPs3StartPressed() { return Ps3.isConnected() && Ps3.data.button.start; }
-bool isPs3SelectPressed() { return Ps3.isConnected() && Ps3.data.button.select; }
 
-// --- Movimiento lateral usando D-Pad ---
 int readAxisX() {
   if (Ps3.isConnected()) {
     if (isPs3LeftPressed()) return 0;
@@ -335,16 +333,6 @@ int readAxisX() {
     return 512;
   }
   return analogRead(joystick_x);
-}
-
-// --- Movimiento vertical usando D-Pad ---
-int readAxisY() {
-  if (Ps3.isConnected()) {
-    if (isPs3UpPressed()) return 1023;
-    if (isPs3DownPressed()) return 0;
-    return 512;
-  }
-  return analogRead(joystick_y);
 }
 
 // --- Setup ---
@@ -359,36 +347,38 @@ void setup() {
   FastLED.clear(true);
   FastLED.setBrightness(64);
 
-  // Inicializar OLED
+  // Forzar inicialización limpia de bus I2C
+  Wire.begin(OLED_SDA, OLED_SCL);
+
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("Error inicializando OLED");
     for (;;);
   }
-  display.clearDisplay();
-  display.display();
+  
   showStartScreen();
 
-  // Inicializar mando PS3 (Agrega tu MAC entre las comillas si la conoces)
+  // Inicializar mando PS3 (Cambia la MAC por la tuya si la conoces)
   if (Ps3.begin("00:00:00:00:00:00")) { 
-    Serial.println("PS3 iniciado");
+    Serial.println("PS3 iniciado listo para sincronizar");
   } else {
-    Serial.println("Error iniciando PS3");
+    Serial.println("Error iniciando stack PS3 Bluetooth");
   }
 
-  // Inicializar variables
   move_delay = INITIAL_MOVE_DELAY;
   drop_delay = INITIAL_DROP_DELAY;
   draw_delay = INITIAL_DRAW_DELAY;
 
   last_draw = last_drop = last_move = millis();
 
-  // Inicializar tablero
   for (int i = 0; i < GRID_W * GRID_H; ++i) {
     grid[i] = 0;
   }
 
   randomSeed(analogRead(joystick_y) + analogRead(2) + analogRead(3));
   choose_new_piece();
+  
+  // Pequeña espera para renderizar la pantalla del Score inicial tras el saludo
+  delay(1500);
   updateDisplay();
 }
 
@@ -396,26 +386,25 @@ void setup() {
 void loop() {
   long t = millis();
 
-  // Movimiento lateral
+  // Movimiento lateral (Izquierda / Derecha)
   if (t - last_move > move_delay) {
     int dx = readAxisX();
     if (dx < 200) {
       last_move = t;
-      Serial.println("Mover izquierda");
       erase_piece_from_grid();
       if (piece_can_fit(piece_x - 1, piece_y, piece_rotation)) piece_x--;
       add_piece_to_grid();
     } else if (dx > 800) {
       last_move = t;
-      Serial.println("Mover derecha");
       erase_piece_from_grid();
       if (piece_can_fit(piece_x + 1, piece_y, piece_rotation)) piece_x++;
       add_piece_to_grid();
     }
   }
 
-  // Rotación
-  if (isPs3UpPressed()) {
+  // Rotación precisa (Detección por cambio de estado - Flanco de subida)
+  bool currentUpState = isPs3UpPressed();
+  if (currentUpState && !lastUpState) {
     Serial.println("Rotar pieza");
     erase_piece_from_grid();
     int new_pr = (piece_rotation + 1) % 4;
@@ -423,25 +412,24 @@ void loop() {
       piece_rotation = new_pr;
     }
     add_piece_to_grid();
-    delay(200); // evitar múltiples rotaciones rápidas
   }
+  lastUpState = currentUpState; // Guardar estado para el siguiente ciclo
 
-  // Caída rápida
+  // Caída rápida controlada
   if (isPs3DownPressed()) {
-    if (t - last_move > 50) { // Pequeño delay para controlar la velocidad de caída rápida
+    if (t - last_move > 40) { 
       last_move = t;
-      Serial.println("Caída rápida");
       try_to_drop_piece();
     }
   }
 
-  // Caída automática
+  // Caída automática regular
   if (t - last_drop > drop_delay) {
     last_drop = t;
     try_to_drop_piece();
   }
 
-  // Redibujar LEDs
+  // Refresco de la matriz física
   if (t - last_draw > draw_delay) {
     last_draw = t;
     draw_grid();
