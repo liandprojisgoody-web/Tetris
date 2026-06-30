@@ -39,6 +39,7 @@ long last_drop;
 long drop_delay;
 long last_draw;
 long draw_delay;
+long last_fast_drop; // SOLUCIÓN: Temporizador independiente para caída rápida
 
 CRGB leds[STRAND_LENGTH];
 long grid[GRID_W*GRID_H];
@@ -83,7 +84,6 @@ void updateDisplay() {
   display.display();
 }
 
-// Ajustar dificultad según score
 void updateDifficulty() {
   level = (score / 50) + 1; 
   drop_delay = INITIAL_DROP_DELAY - (level - 1) * 50; 
@@ -148,11 +148,19 @@ const long piece_colors[NUM_PIECE_TYPES] = {
   0x009900, // verde S
   0xFF0000, // rojo Z
   0xFF8000, // naranja L
-  0x000044, // azul J
+  0x0000FF, // azul J (Corregido a azul puro para mayor brillo)
   0xFFFF00, // amarillo O
   0xFF00FF, // morado T
   0x00FFFF  // turquesa I
 };
+
+int piece_id;
+int piece_rotation;
+int piece_x;
+int piece_y;
+
+char piece_sequence[NUM_PIECE_TYPES];
+char sequence_i = NUM_PIECE_TYPES;
 
 // --- Funciones de dibujo ---
 #define COLOR_ORDER GRB
@@ -189,15 +197,6 @@ void draw_grid() {
   }
   FastLED.show();
 }
-
-// --- Lógica de piezas ---
-int piece_id;
-int piece_rotation;
-int piece_x;
-int piece_y;
-
-char piece_sequence[NUM_PIECE_TYPES];
-char sequence_i = NUM_PIECE_TYPES;
 
 void choose_new_piece() {
   if (sequence_i >= NUM_PIECE_TYPES) {
@@ -286,7 +285,7 @@ void delete_possible_lines() {
         }
       }
       for (int x = 0; x < GRID_W; x++) {
-        grid[0 + x] = 0;
+        grid[x] = 0;
       }
       y++; 
     }
@@ -304,17 +303,22 @@ void try_to_drop_piece() {
     piece_y++;
     add_piece_to_grid();
   } else {
-    add_piece_to_grid(); 
+    add_piece_to_grid(); // Bloquear la pieza vieja en su lugar definitivo
     delete_possible_lines();
     choose_new_piece();
+    
+    // Validar Game Over inmediatamente al spawnear
     if (!piece_can_fit(piece_x, piece_y, piece_rotation)) {
       for (int i = 0; i < GRID_W * GRID_H; ++i) {
         grid[i] = 0;
       }
+      FastLED.clear(true); // SOLUCIÓN: Limpieza instantánea del hardware visual
       score = 0;
       level = 1;
       updateDifficulty();
       updateDisplay();
+    } else {
+      add_piece_to_grid(); // Pintar la nueva pieza limpia
     }
   }
 }
@@ -346,17 +350,15 @@ void setup() {
   FastLED.clear(true);
   FastLED.setBrightness(64);
 
-  // Forzar inicialización limpia de bus I2C
   Wire.begin(OLED_SDA, OLED_SCL);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("Error inicializando OLED");
     for (;;);
   }
-  
+
   showStartScreen();
 
-  // Inicializar mando PS3 (Cambia la MAC por la tuya si la conoces)
   if (Ps3.begin("00:00:00:00:00:00")) { 
     Serial.println("PS3 iniciado listo para sincronizar");
   } else {
@@ -367,7 +369,7 @@ void setup() {
   drop_delay = INITIAL_DROP_DELAY;
   draw_delay = INITIAL_DRAW_DELAY;
 
-  last_draw = last_drop = last_move = millis();
+  last_draw = last_drop = last_move = last_fast_drop = millis();
 
   for (int i = 0; i < GRID_W * GRID_H; ++i) {
     grid[i] = 0;
@@ -375,8 +377,8 @@ void setup() {
 
   randomSeed(analogRead(joystick_y) + analogRead(2) + analogRead(3));
   choose_new_piece();
-  
-  // Pequeña espera para renderizar la pantalla del Score inicial tras el saludo
+  add_piece_to_grid(); // Asegurar que la primera pieza se registre antes del loop
+
   delay(1500);
   updateDisplay();
 }
@@ -401,10 +403,9 @@ void loop() {
     }
   }
 
-  // Rotación precisa (Detección por cambio de estado - Flanco de subida)
+  // Rotación precisa (Flanco de subida)
   bool currentUpState = isPs3UpPressed();
   if (currentUpState && !lastUpState) {
-    Serial.println("Rotar pieza");
     erase_piece_from_grid();
     int new_pr = (piece_rotation + 1) % 4;
     if (piece_can_fit(piece_x, piece_y, new_pr)) {
@@ -412,12 +413,12 @@ void loop() {
     }
     add_piece_to_grid();
   }
-  lastUpState = currentUpState; // Guardar estado para el siguiente ciclo
+  lastUpState = currentUpState; 
 
-  // Caída rápida controlada
+  // SOLUCIÓN: Caída rápida controlada con su propio temporizador independiente (last_fast_drop)
   if (isPs3DownPressed()) {
-    if (t - last_move > 40) { 
-      last_move = t;
+    if (t - last_fast_drop > 40) { 
+      last_fast_drop = t;
       try_to_drop_piece();
     }
   }
