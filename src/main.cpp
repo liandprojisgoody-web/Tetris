@@ -1,4 +1,3 @@
-
 #include <Preferences.h>
 #include <FastLED.h>
 #include <Ps3Controller.h>
