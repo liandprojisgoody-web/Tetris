@@ -57,6 +57,71 @@ bool lastStartState = false;
 bool lastCircleState = false;
 bool lastR3State = false;
 
+// --- Definición de las Piezas de Tetris (7 tipos) ---
+// Cada pieza tiene 4 rotaciones, cada una es una matriz de 4x4
+const char pieces[NUM_PIECE_TYPES][PIECE_H * PIECE_W * 4] = {
+  // I - Cyan
+  {
+    0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0,
+    0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0,
+    0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0,
+    0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0
+  },
+  // O - Yellow
+  {
+    0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+    0,1,1,0, 0,1,1,0, 0,1,1,0, 0,1,1,0,
+    0,1,1,0, 0,1,1,0, 0,1,1,0, 0,1,1,0,
+    0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+  },
+  // T - Purple
+  {
+    0,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,0,
+    0,1,1,1, 0,1,1,0, 1,1,1,0, 0,1,0,0,
+    0,0,0,0, 0,1,0,0, 0,0,0,0, 0,1,1,0,
+    0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+  },
+  // S - Green
+  {
+    0,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,0,
+    0,0,1,1, 0,1,1,0, 1,1,0,0, 0,1,0,0,
+    0,1,1,0, 0,0,1,0, 0,0,1,1, 0,1,1,0,
+    0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+  },
+  // Z - Red
+  {
+    0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,0,
+    0,1,1,0, 0,1,1,0, 0,1,1,0, 0,1,0,0,
+    0,0,1,1, 0,1,0,0, 1,1,0,0, 0,1,1,0,
+    0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+  },
+  // J - Blue
+  {
+    0,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,1,
+    0,1,1,1, 0,1,1,0, 1,1,1,0, 0,1,0,0,
+    0,0,0,0, 0,1,0,0, 0,0,1,0, 0,1,0,0,
+    0,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,0
+  },
+  // L - Orange
+  {
+    0,0,1,0, 0,0,0,0, 0,0,0,0, 0,1,0,0,
+    0,1,1,1, 0,1,1,0, 1,1,1,0, 0,1,0,0,
+    0,0,0,0, 0,1,0,0, 1,0,0,0, 0,1,1,0,
+    0,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,0
+  }
+};
+
+// Colores RGB para cada pieza (7 tipos)
+const long piece_colors[NUM_PIECE_TYPES] = {
+  0x00FFFF,  // I - Cyan
+  0xFFFF00,  // O - Yellow
+  0xFF00FF,  // T - Purple (Magenta)
+  0x00FF00,  // S - Green
+  0xFF0000,  // Z - Red
+  0x0000FF,  // J - Blue
+  0xFF8800   // L - Orange
+};
+
 // --- Matrices de caracteres personalizados para la Matriz 16x16 ---
 // Pantalla Pausa: C (Continuar/Start) y R (Reiniciar/Círculo) lado a lado
 const uint16_t bitmap_PauseScreen[] = {
@@ -386,7 +451,7 @@ void loop() {
   // ---- MÁQUINA DE ESTADOS COMPLETA ----
   switch (currentState) {
     
-    case MENU:
+    case MENU: {
       drawMenuScreen(t); 
       if (startPressed) {
         resetGameVariables();
@@ -395,8 +460,9 @@ void loop() {
         updateOledDisplay();
       }
       break;
+    }
 
-    case PLAYING:
+    case PLAYING: {
       // Entrar a menú pausa con SELECT (START no hace nada en este modo)
       if (selectPressed) {
         currentState = PAUSED;
@@ -440,8 +506,9 @@ void loop() {
       // Dibujado del Tablero
       if (t - last_draw > draw_delay) { last_draw = t; draw_grid(); }
       break;
+    }
 
-    case PAUSED:
+    case PAUSED: {
       // Muestra la C (Verde - Izquierda) y la R (Roja - Derecha) alineadas en los LEDs
       FastLED.clear();
       drawBitmap(bitmap_PauseScreen, 8, 0x00FF00, 0, 4); // C en Verde 
@@ -466,8 +533,9 @@ void loop() {
         updateOledDisplay();
       }
       break;
+    }
 
-    case GAME_OVER:
+    case GAME_OVER: {
       // Muestra la J (Verde) y la S (Roja)
       FastLED.clear();
       drawBitmap(bitmap_GameOverScreen, 9, 0x00FF00, 0, 4); 
@@ -489,5 +557,6 @@ void loop() {
         updateOledDisplay();
       }
       break;
+    }
   }
 }
